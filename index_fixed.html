@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analisis Keuangan Modern (Google Sheets 2-Way Sync)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              900: '#0c4a6e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #0b0f19; color: #f1f5f9; }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="font-sans min-h-screen pb-12 antialiased text-slate-200">
+
+  <header class="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 mb-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+          <i class="fa-solid fa-chart-line text-lg"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight text-white flex items-center gap-2">
+            FinAnalyse <span class="text-[10px] px-2 py-0.5 bg-brand-500/20 text-brand-400 border border-brand-500/30 rounded-full font-mono">2-WAY SYNC</span>
+          </h1>
+          <p class="text-xs text-slate-400">Analisa Keuangan & Google Sheet Interaktif</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <div id="connectionStatusBadge" class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs bg-slate-800 border border-slate-700 text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" id="statusDot"></span>
+          <span id="statusText">Lokal</span>
+        </div>
+
+        <button onclick="fetchDataFromSheet()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
+          <span class="hidden md:inline">Tarik Data</span>
+        </button>
+
+        <button onclick="openConfigModal()" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-brand-600/20 transition">
+          <i class="fa-solid fa-gear"></i>
+          <span>Pengaturan App Script</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+
+    <!-- KPI Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Total Saldo -->
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Total Saldo Bersih</p>
+            <h3 id="cardTotalSaldo" class="text-2xl font-bold text-white mt-1">Rp 0</h3>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-wallet text-base"></i>
+          </div>
+        </div>
+        <p id="saldoStatus" class="text-[11px] text-slate-400 mt-3 flex items-center gap-1">
+          <i class="fa-solid fa-circle-info text-brand-400"></i> Standby
+        </p>
+      </div>
+
+      <!-- Total Pemasukan -->
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Total Pemasukan</p>
+            <h3 id="cardTotalPemasukan" class="text-2xl font-bold text-emerald-400 mt-1">Rp 0</h3>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-arrow-down-left text-base"></i>
+          </div>
+        </div>
+        <p id="pemasukanCount" class="text-[11px] text-slate-400 mt-3">0 Transaksi</p>
+      </div>
+
+      <!-- Total Pengeluaran -->
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Total Pengeluaran</p>
+            <h3 id="cardTotalPengeluaran" class="text-2xl font-bold text-rose-400 mt-1">Rp 0</h3>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+            <i class="fa-solid fa-arrow-up-right text-base"></i>
+          </div>
+        </div>
+        <p id="pengeluaranCount" class="text-[11px] text-slate-400 mt-3">0 Transaksi</p>
+      </div>
+
+      <!-- Financial Health Score -->
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Skor Kesehatan Keuangan</p>
+            <h3 id="cardHealthScore" class="text-2xl font-bold text-brand-400 mt-1">0/100</h3>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
+            <i class="fa-solid fa-heart-pulse text-base"></i>
+          </div>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div id="healthBar" class="bg-brand-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Input Form Transaksi -->
+      <div class="glass-card p-6 rounded-2xl lg:col-span-1 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h2 class="font-bold text-base text-white flex items-center gap-2">
+            <i class="fa-solid fa-pen-to-square text-brand-400"></i>
+            <span id="formTitle">Tambah Transaksi</span>
+          </h2>
+          <button id="cancelEditBtn" onclick="resetForm()" class="hidden text-xs text-rose-400 hover:underline">Batal Edit</button>
+        </div>
+
+        <form id="transactionForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+          <input type="hidden" id="txId">
+
+          <!-- Tanggal -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Tanggal</label>
+            <input type="date" id="txTanggal" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-brand-500">
+          </div>
+
+          <!-- Jenis Transaksi -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Jenis Transaksi</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" id="btnJenisPengeluaran" onclick="setJenis('Pengeluaran')" class="py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition bg-rose-500/20 border-rose-500/50 text-rose-300">
+                <i class="fa-solid fa-minus-circle"></i> Pengeluaran
+              </button>
+              <button type="button" id="btnJenisPemasukan" onclick="setJenis('Pemasukan')" class="py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition bg-slate-900 border-slate-800 text-slate-400">
+                <i class="fa-solid fa-plus-circle"></i> Pemasukan
+              </button>
+            </div>
+            <input type="hidden" id="txJenis" value="Pengeluaran">
+          </div>
+
+          <!-- Kategori -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Kategori</label>
+            <select id="txKategori" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-brand-500">
+              <!-- Dynamic Options via JS -->
+            </select>
+          </div>
+
+          <!-- Jumlah -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Jumlah (Rp)</label>
+            <input type="text" id="txJumlah" inputmode="numeric" placeholder="Contoh: 50000" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-brand-500">
+          </div>
+
+          <!-- Keterangan -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Keterangan / Catatan</label>
+            <textarea id="txKeterangan" rows="2" placeholder="Catatan opsional..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-brand-500"></textarea>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" id="submitBtn" class="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-brand-600/30">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Simpan Transaksi</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Charts View -->
+      <div class="glass-card p-6 rounded-2xl lg:col-span-2 space-y-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
+          <h2 class="font-bold text-base text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-pie text-brand-400"></i>
+            <span>Visualisasi & Tren Keuangan</span>
+          </h2>
+          <span class="text-xs text-slate-400">Analisis Otomatis Real-time</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Chart 1: Pemasukan vs Pengeluaran -->
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <h3 class="text-xs font-semibold text-slate-300 mb-2">Arus Kas (Cash Flow)</h3>
+            <div class="relative h-48">
+              <canvas id="cashFlowChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 2: Kategori Pengeluaran -->
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <h3 class="text-xs font-semibold text-slate-300 mb-2">Sebaran Pengeluaran</h3>
+            <div class="relative h-48">
+              <canvas id="categoryChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analisis 50/30/20 -->
+        <div id="budgetRuleAnalysis" class="p-4 bg-slate-900/40 rounded-xl border border-slate-800 space-y-2">
+          <h4 class="text-xs font-bold text-brand-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-calculator"></i> Analisa Aturan Keuangan 50/30/20
+          </h4>
+          <p id="analysisText" class="text-xs text-slate-300 leading-relaxed">
+            Masukkan data pemasukan dan pengeluaran Anda untuk melihat analisis perbandingan Kebutuhan (50%), Keinginan (30%), dan Tabungan/Investasi (20%).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card p-6 rounded-2xl space-y-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="font-bold text-base text-white flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-brand-400"></i>
+            <span>Daftar Transaksi</span>
+          </h2>
+          <p class="text-xs text-slate-400">Data dapat diedit atau dihapus secara langsung</p>
+        </div>
+
+        <!-- Filter & Search Controls -->
+        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <input type="text" id="searchInput" oninput="renderTable()" placeholder="Cari keterangan..." class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-brand-500 flex-1 sm:w-48">
+          
+          <select id="filterJenis" onchange="renderTable()" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-brand-500">
+            <option value="ALL">Semua Jenis</option>
+            <option value="Pemasukan">Pemasukan</option>
+            <option value="Pengeluaran">Pengeluaran</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Table Container -->
+      <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-900/80 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+            <tr>
+              <th class="py-3 px-4">Tanggal</th>
+              <th class="py-3 px-4">Jenis</th>
+              <th class="py-3 px-4">Kategori</th>
+              <th class="py-3 px-4">Jumlah (Rp)</th>
+              <th class="py-3 px-4">Keterangan</th>
+              <th class="py-3 px-4 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="transactionTableBody" class="divide-y divide-slate-800/60 font-medium">
+            <!-- Dynamic Rows -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="configModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl relative">
+      <button onclick="closeConfigModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="space-y-1">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-link text-brand-400"></i>
+          Pengaturan Google Apps Script
+        </h3>
+        <p class="text-xs text-slate-400">Hubungkan web dashboard ini dengan Google Sheets Anda secara 2 arah.</p>
+      </div>
+
+      <!-- Input URL Web App -->
+      <div class="space-y-2 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+        <label for="webAppUrlInput" class="font-semibold text-slate-200 block text-xs">
+          URL Web App Google Apps Script
+        </label>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="url" id="webAppUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-brand-500">
+          <div class="flex gap-2">
+            <button onclick="saveAppsScriptUrl()" class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition flex items-center gap-1 text-xs">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>Simpan</span>
+            </button>
+            <button onclick="testAppsScriptConnection()" class="px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 rounded-xl font-medium transition flex items-center gap-1 text-xs" title="Uji Diagnostik Koneksi">
+              <i class="fa-solid fa-vial"></i>
+              <span>Tes Koneksi</span>
+            </button>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400">Pastikan URL berakhiran <code class="text-emerald-400">/exec</code>.</p>
+        
+        <!-- Diagnostic Output Box -->
+        <div id="diagResult" class="hidden p-3 rounded-xl text-xs font-mono border leading-relaxed"></div>
+      </div>
+
+      <!-- Instruction Box -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h4 class="font-bold text-slate-200 text-xs uppercase tracking-wider">PANDUAN AGAR BERHASIL TERHUBUNG:</h4>
+          <button onclick="copyAppsScriptCode()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-brand-400 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-copy"></i>
+            <span id="copyBtnText">Salin Kode.gs</span>
+          </button>
+        </div>
+
+        <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-[11px] space-y-1">
+          <p class="font-bold flex items-center gap-1.5">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            Langkah Penting Saat Deploy Google Apps Script:
+          </p>
+          <ol class="list-decimal list-inside space-y-1 text-slate-300 pl-1">
+            <li>Saat Deploy, atur <b>"Who has access" (Siapa yang memiliki akses)</b> ke <b class="text-emerald-400">"Anyone" (Siapa saja)</b>.</li>
+            <li>Salin URL Web App yang berakhiran <code class="text-emerald-400 font-mono">/exec</code> (Bukan URL editor spreadsheet).</li>
+            <li>Klik tombol <b>"Tes Koneksi"</b> di atas untuk memastikan status koneksi.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-xs max-w-md">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+    <div>
+      <h5 id="toastTitle" class="font-bold text-white">Sukses</h5>
+      <p id="toastMessage" class="text-slate-300 text-[11px]">Pesan notifikasi...</p>
+    </div>
+  </div>
+
+  <script>
+    const CATEGORIES = {
+      Pemasukan: ['Gaji / Utama', 'Usaha / Bisnis', 'Investasi', 'Bonus / Hadiah', 'Lainnya'],
+      Pengeluaran: ['Makanan & Minuman', 'Sewa & Tagihan', 'Transportasi', 'Belanja & Hiburan', 'Kesehatan', 'Pendidikan', 'Investasi / Tabungan', 'Lainnya']
+    };
+
+    let isSaving = false;
+
+    let state = {
+      webAppUrl: localStorage.getItem('fin_webapp_url') || '',
+      transactions: JSON.parse(localStorage.getItem('fin_transactions')) || [],
+      cashFlowChart: null,
+      categoryChart: null
+    };
+
+    // Initialize on Load
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('txTanggal').valueAsDate = new Date();
+      document.getElementById('webAppUrlInput').value = state.webAppUrl;
+
+      updateCategoryDropdown('Pengeluaran');
+      initCharts();
+      refreshUI();
+      const txJumlah=document.getElementById('txJumlah');
+      txJumlah.addEventListener('input',function(){
+        this.value=this.value.replace(/[^0-9]/g,'');
+      });
+
+
+      if (state.webAppUrl) {
+        fetchDataFromSheet();
+      } else {
+        updateConnectionStatus('local', 'Mode Lokal (Belum Terhubung)');
+      }
+    });
+
+    function setJenis(jenis) {
+      document.getElementById('txJenis').value = jenis;
+      const btnPengeluaran = document.getElementById('btnJenisPengeluaran');
+      const btnPemasukan = document.getElementById('btnJenisPemasukan');
+
+      if (jenis === 'Pengeluaran') {
+        btnPengeluaran.className = "py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition bg-rose-500/20 border-rose-500/50 text-rose-300";
+        btnPemasukan.className = "py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition bg-slate-900 border-slate-800 text-slate-400";
+      } else {
+        btnPemasukan.className = "py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition bg-emerald-500/20 border-emerald-500/50 text-emerald-300";
+        btnPengeluaran.className = "py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition bg-slate-900 border-slate-800 text-slate-400";
+      }
+
+      updateCategoryDropdown(jenis);
+    }
+
+    function updateCategoryDropdown(jenis) {
+      const select = document.getElementById('txKategori');
+      select.innerHTML = '';
+      CATEGORIES[jenis].forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
+      });
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      if(isSaving) return;
+      isSaving=true;
+      const submitBtn=document.getElementById('submitBtn');
+      submitBtn.disabled=true;
+      submitBtn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i><span>Menyimpan...</span>';
+
+      const id = document.getElementById('txId').value || 'TX-' + Date.now();
+      const tanggal = document.getElementById('txTanggal').value;
+      const jenis = document.getElementById('txJenis').value;
+      const kategori = document.getElementById('txKategori').value;
+      const jumlah = parseInt(document.getElementById('txJumlah').value||'0',10);
+      const keterangan = document.getElementById('txKeterangan').value.trim();
+
+      const newTx = { id, tanggal, jenis, kategori, jumlah, keterangan };
+
+      const existingIndex = state.transactions.findIndex(t => t.id === id);
+      const action = existingIndex >= 0 ? 'UPDATE' : 'ADD';
+
+      if (existingIndex >= 0) {
+        state.transactions[existingIndex] = newTx;
+      } else {
+        state.transactions.unshift(newTx);
+      }
+
+      saveLocalData();
+      refreshUI();
+      resetForm();
+
+      showToast('Menyimpan...', 'Mengirim perubahan ke Google Sheet...', 'info');
+
+      // 2-Way Sync to Apps Script
+      if (state.webAppUrl) {
+        const res = await sendToSheet(action, { data: newTx });
+        if (res.success) {
+          showToast('Tersimpan', 'Data berhasil diperbarui di Google Sheet!', 'success');
+        } else {
+          showToast('Tersimpan Lokal', 'Data disimpan di browser, tapi gagal kirim ke Sheet: ' + res.message, 'warning');
+        }
+      } else {
+        showToast('Berhasil', 'Transaksi disimpan di memori lokal browser.', 'success');
+      }
+      isSaving=false;
+      submitBtn.disabled=false;
+      submitBtn.innerHTML='<i class="fa-solid fa-floppy-disk"></i><span>Simpan Transaksi</span>';
+    }
+
+    async function editTransaction(id) {
+      const tx = state.transactions.find(t => t.id === id);
+      if (!tx) return;
+
+      document.getElementById('txId').value = tx.id;
+      document.getElementById('txTanggal').value = tx.tanggal;
+      setJenis(tx.jenis);
+      document.getElementById('txKategori').value = tx.kategori;
+      document.getElementById('txJumlah').value = tx.jumlah;
+      document.getElementById('txKeterangan').value = tx.keterangan;
+
+      document.getElementById('formTitle').textContent = 'Edit Transaksi';
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+      document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-pen"></i><span>Perbarui Transaksi</span>';
+      
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function deleteTransaction(id) {
+      if (!confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) return;
+
+      state.transactions = state.transactions.filter(t => t.id !== id);
+      saveLocalData();
+      refreshUI();
+
+      if (state.webAppUrl) {
+        showToast('Hapus...', 'Menghapus dari Google Sheet...', 'info');
+        const res = await sendToSheet('DELETE', { id });
+        if (res.success) {
+          showToast('Dihapus', 'Data berhasil dihapus dari Google Sheet.', 'success');
+        } else {
+          showToast('Warning', 'Gagal menghapus dari Sheet: ' + res.message, 'warning');
+        }
+      } else {
+        showToast('Dihapus', 'Transaksi dihapus dari penyimpan lokal.', 'success');
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('transactionForm').reset();
+      document.getElementById('txId').value = '';
+      document.getElementById('txTanggal').valueAsDate = new Date();
+      setJenis('Pengeluaran');
+      document.getElementById('formTitle').textContent = 'Tambah Transaksi';
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span>Simpan Transaksi</span>';
+    }
+
+    async function sendToSheet(action, payload) {
+      if (!state.webAppUrl) return { success: false, message: 'URL Kosong' };
+
+      const bodyObj = { action, ...payload };
+
+      // Strategi 1: Kirim via POST (Text/Plain untuk menghindari CORS preflight)
+      try {
+        const response = await fetch(state.webAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(bodyObj),
+          redirect: 'follow'
+        });
+
+        const rawText = await response.text();
+        if (rawText.trim().startsWith('<')) {
+          return { 
+            success: false, 
+            message: 'Akses Ditolak! Opsi "Who has access" pada Apps Script harus diubah ke "Anyone".' 
+          };
+        }
+
+        const res = JSON.parse(rawText);
+        if (res.status === 'success') {
+          return { success: true, data: res };
+        }
+      } catch (err) {
+        console.warn("POST gagal, mencoba fallback GET...", err);
+      }
+
+      // Strategi 2: Fallback Anti-CORS via GET Query Parameter
+      try {
+        const targetUrl = `${state.webAppUrl}?payload=${encodeURIComponent(JSON.stringify(bodyObj))}`;
+        const response = await fetch(targetUrl, { redirect: 'follow' });
+        const rawText = await response.text();
+
+        if (rawText.trim().startsWith('<')) {
+          return { 
+            success: false, 
+            message: 'Akses Ditolak oleh Google! Pastikan "Who has access" diset ke "Anyone" pada Deploy Apps Script.' 
+          };
+        }
+
+        const res = JSON.parse(rawText);
+        if (res.status === 'success') {
+          return { success: true, data: res };
+        } else {
+          return { success: false, message: res.message || 'Error dari Apps Script' };
+        }
+      } catch (err) {
+        return { success: false, message: 'Koneksi terblokir browser / Network error.' };
+      }
+    }
+
+    async function fetchDataFromSheet() {
+      if (!state.webAppUrl) {
+        showToast('Info', 'Aplikasi berjalan dalam mode lokal. Masukkan URL Apps Script di Pengaturan.', 'info');
+        return;
+      }
+
+      const syncIcon = document.getElementById('syncIcon');
+      syncIcon.classList.add('fa-spin');
+      updateConnectionStatus('syncing', 'Menghubungkan ke Sheet...');
+
+      try {
+        const response = await fetch(state.webAppUrl, { redirect: 'follow' });
+        const rawText = await response.text();
+
+        if (rawText.trim().startsWith('<')) {
+          throw new Error('Akses Ditolak: Opsi "Who has access" pada Apps Script belum diset ke "Anyone". Klik "Pengaturan App Script" -> "Tes Koneksi" untuk panduan.');
+        }
+
+        const result = JSON.parse(rawText);
+
+        if (result.status === 'success') {
+          state.transactions = result.data.map(item => ({
+            id: item.id || 'TX-' + Math.random().toString(36).substring(2, 9),
+            tanggal: item.tanggal,
+            jenis: item.jenis,
+            kategori: item.kategori,
+            jumlah: Number(item.jumlah) || 0,
+            keterangan: item.keterangan || ''
+          }));
+
+          saveLocalData();
+          updateConnectionStatus('connected', 'Tersambung ke Google Sheet');
+          showToast('Berhasil', 'Data berhasil ditarik dari Google Sheet!', 'success');
+          refreshUI();
+        } else {
+          showToast('Gagal', result.message || 'Gagal mengambil data dari Sheet', 'error');
+          updateConnectionStatus('local', 'Error Sheet');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Koneksi Gagal', err.message || 'Gagal terhubung ke Google Apps Script.', 'error');
+        updateConnectionStatus('local', 'Gagal Terhubung');
+      } finally {
+        syncIcon.classList.remove('fa-spin');
+      }
+    }
+
+    async function testAppsScriptConnection() {
+      const urlInput = document.getElementById('webAppUrlInput').value.trim();
+      const diagEl = document.getElementById('diagResult');
+      diagEl.classList.remove('hidden');
+      diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-slate-950 border-slate-800 text-slate-300 space-y-2";
+      diagEl.innerHTML = "⏳ Sedang menguji koneksi & memeriksa hak akses...";
+
+      if (!urlInput) {
+        diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200";
+        diagEl.innerHTML = "❌ <b>URL KOSONG!</b><br>Masukkan URL Web App terlebih dahulu.";
+        return;
+      }
+
+      if (!urlInput.includes('/exec')) {
+        diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200";
+        diagEl.innerHTML = "❌ <b>URL SALAH!</b><br>URL harus berakhiran <b>/exec</b> (Contoh: https://script.google.com/macros/s/.../exec).<br>Jangan gunakan URL editor spreadsheet.";
+        return;
+      }
+
+      try {
+        const res = await fetch(urlInput, { redirect: 'follow' });
+        const text = await res.text();
+
+        if (text.trim().startsWith('<')) {
+          diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-amber-950/80 border-amber-700 text-amber-200 space-y-1.5";
+          diagEl.innerHTML = `
+            <div class="font-bold text-amber-300">⚠️ PENYEBAB GAGAL TERHUBUNG DITEMUKAN:</div>
+            <div>Google merespon dengan halaman Login (HTML) karena izin akses terblokir.</div>
+            <div class="mt-2 font-bold text-white">Langkah Perbaikan Wajib:</div>
+            <ol class="list-decimal list-inside space-y-1 text-slate-200 pl-1">
+              <li>Buka Google Apps Script Editor Anda.</li>
+              <li>Salin ulang kode <b>Kode.gs</b> terbaru dari tombol di bawah.</li>
+              <li>Klik tombol <b>Deploy</b> (Kanan atas) &rarr; pilih <b>Manage deployments</b>.</li>
+              <li>Klik ikon ✏️ <b>Edit</b> pada deployment aktif.</li>
+              <li>Ubah <b>Who has access</b> (Siapa yang memiliki akses) menjadi <b class="text-emerald-400">"Anyone" (Siapa saja)</b>.</li>
+              <li>Ubah <b>Execute as</b> menjadi <b class="text-emerald-400">"Me"</b>.</li>
+              <li>Klik <b>Deploy</b> lagi, lalu tempel URL Web App yang baru di sini.</li>
+            </ol>
+          `;
+          return;
+        }
+
+        const data = JSON.parse(text);
+        if (data.status === 'success') {
+          diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-emerald-950/80 border-emerald-700 text-emerald-200 space-y-1";
+          diagEl.innerHTML = `
+            <div class="font-bold text-emerald-300">✅ KONEKSI SUKSES 100%!</div>
+            <div>Google Apps Script terhubung dan merespon dengan sempurna.</div>
+            <div>Jumlah data ditemukan di Sheet: <b>${data.data ? data.data.length : 0} item</b>.</div>
+          `;
+        } else {
+          diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200";
+          diagEl.innerHTML = `❌ <b>Respon Error dari Apps Script:</b> ${data.message}`;
+        }
+      } catch (e) {
+        diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200 space-y-1";
+        diagEl.innerHTML = `
+          <div class="font-bold text-rose-300">❌ GAGAL TERHUBUNG (Network Error)</div>
+          <div>Pesan Error: ${e.message}</div>
+          <div class="mt-1 text-slate-300">Pastikan URL Web App benar dan opsi 'Who has access' diset ke 'Anyone'.</div>
+        `;
+      }
+    }
+
+    async function deleteTransaction(id) {
+      // Direct action execution without browser confirm dialog
+      state.transactions = state.transactions.filter(t => t.id !== id);
+      saveLocalData();
+      refreshUI();
+
+      if (state.webAppUrl) {
+        showToast('Hapus...', 'Menghapus dari Google Sheet...', 'info');
+        const res = await sendToSheet('DELETE', { id });
+        if (res.success) {
+          showToast('Dihapus', 'Data berhasil dihapus dari Google Sheet.', 'success');
+        } else {
+          showToast('Warning', 'Gagal menghapus dari Sheet: ' + res.message, 'warning');
+        }
+      } else {
+        showToast('Dihapus', 'Transaksi dihapus dari memori lokal.', 'success');
+      }
+    }
+
+    async function fetchDataFromSheet() {
+      if (!state.webAppUrl) {
+        showToast('Info', 'Aplikasi berjalan dalam mode lokal. Masukkan URL Apps Script di Pengaturan.', 'info');
+        return;
+      }
+
+      const syncIcon = document.getElementById('syncIcon');
+      syncIcon.classList.add('fa-spin');
+      updateConnectionStatus('syncing', 'Menghubungkan ke Sheet...');
+
+      try {
+        const response = await fetch(state.webAppUrl, { redirect: 'follow' });
+        const rawText = await response.text();
+
+        if (rawText.trim().startsWith('<')) {
+          throw new Error('Format HTML diterima. Pastikan opsi "Who has access" di Apps Script diset ke "Anyone".');
+        }
+
+        const result = JSON.parse(rawText);
+
+        if (result.status === 'success') {
+          state.transactions = result.data.map(item => ({
+            id: item.id || 'TX-' + Math.random().toString(36).substring(2, 9),
+            tanggal: item.tanggal,
+            jenis: item.jenis,
+            kategori: item.kategori,
+            jumlah: Number(item.jumlah) || 0,
+            keterangan: item.keterangan || ''
+          }));
+
+          saveLocalData();
+          updateConnectionStatus('connected', 'Tersambung ke Google Sheet');
+          showToast('Berhasil', 'Data berhasil diperbarui dari Google Sheet!', 'success');
+          refreshUI();
+        } else {
+          showToast('Gagal', result.message || 'Gagal mengambil data dari Sheet', 'error');
+          updateConnectionStatus('local', 'Error Sheet');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Koneksi Gagal', err.message || 'Gagal terhubung ke Google Apps Script.', 'error');
+        updateConnectionStatus('local', 'Gagal Terhubung');
+      } flex: {
+        syncIcon.classList.remove('fa-spin');
+      }
+    }
+
+    async function testAppsScriptConnection() {
+      const urlInput = document.getElementById('webAppUrlInput').value.trim();
+      const diagEl = document.getElementById('diagResult');
+      diagEl.classList.remove('hidden');
+      diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-slate-950 border-slate-800 text-slate-300 space-y-1";
+      diagEl.innerHTML = "⏳ Sedang menguji koneksi ke Google Apps Script...";
+
+      if (!urlInput) {
+        diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200";
+        diagEl.innerHTML = "❌ URL Kosong! Masukkan URL Web App terlebih dahulu.";
+        return;
+      }
+
+      if (!urlInput.includes('/exec')) {
+        diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200";
+        diagEl.innerHTML = "❌ URL Salah! URL harus berakhiran <b>/exec</b>, bukan /edit.";
+        return;
+      }
+
+      try {
+        const res = await fetch(urlInput, { redirect: 'follow' });
+        const text = await res.text();
+
+        if (text.trim().startsWith('<')) {
+          diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-amber-950/80 border-amber-700 text-amber-200";
+          diagEl.innerHTML = "⚠️ Terhubung, namun mendapat respon HTML Google Login.<br><br><b>Penyebab:</b> Opsi 'Who has access' belum diset ke 'Anyone'.<br><b>Solusi:</b> Buka Apps Script &rarr; Deploy &rarr; Manage deployments &rarr; Edit &rarr; Ubah <b>Who has access</b> menjadi <b>Anyone</b> &rarr; Deploy ulang.";
+          return;
+        }
+
+        const data = JSON.parse(text);
+        if (data.status === 'success') {
+          diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-emerald-950/80 border-emerald-700 text-emerald-200";
+          diagEl.innerHTML = `✅ Koneksi SUKSES! Google Apps Script merespon dengan sempurna.<br>Jumlah transaksi ditemukan di Sheet: <b>${data.data ? data.data.length : 0}</b>`;
+        } else {
+          diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200";
+          diagEl.innerHTML = `❌ Respon Error: ${data.message}`;
+        }
+      } catch (e) {
+        diagEl.className = "p-3 rounded-xl text-xs font-mono border bg-rose-950/80 border-rose-700 text-rose-200";
+        diagEl.innerHTML = `❌ Gagal Terhubung: ${e.message}<br>Pastikan 'Who has access' diset ke 'Anyone' di Apps Script.`;
+      }
+    }
+
+    function refreshUI() {
+      renderTable();
+      calculateKPIs();
+      updateCharts();
+    }
+
+    function calculateKPIs() {
+      let totalPemasukan = 0;
+      let totalPengeluaran = 0;
+      let countPem = 0;
+      let countPeng = 0;
+
+      state.transactions.forEach(t => {
+        if (t.jenis === 'Pemasukan') {
+          totalPemasukan += t.jumlah;
+          countPem++;
+        } else {
+          totalPengeluaran += t.jumlah;
+          countPeng++;
+        }
+      });
+
+      const totalSaldo = totalPemasukan - totalPengeluaran;
+
+      document.getElementById('cardTotalSaldo').textContent = formatRupiah(totalSaldo);
+      document.getElementById('cardTotalPemasukan').textContent = formatRupiah(totalPemasukan);
+      document.getElementById('cardTotalPengeluaran').textContent = formatRupiah(totalPengeluaran);
+
+      document.getElementById('pemasukanCount').textContent = `${countPem} Transaksi`;
+      document.getElementById('pengeluaranCount').textContent = `${countPeng} Transaksi`;
+
+      const saldoEl = document.getElementById('saldoStatus');
+      if (totalSaldo >= 0) {
+        saldoEl.className = "text-[11px] text-emerald-400 mt-3 flex items-center gap-1 font-semibold";
+        saldoEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Arus Kas Positif';
+      } else {
+        saldoEl.className = "text-[11px] text-rose-400 mt-3 flex items-center gap-1 font-semibold";
+        saldoEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Defisit (Pengeluaran > Pemasukan)';
+      }
+
+      // Hitung Skor Kesehatan (0-100)
+      let healthScore = 0;
+      if (totalPemasukan > 0) {
+        const savingRatio = (totalSaldo / totalPemasukan) * 100;
+        if (savingRatio >= 20) healthScore = 100;
+        else if (savingRatio >= 10) healthScore = 75;
+        else if (savingRatio > 0) healthScore = 50;
+        else healthScore = 20;
+      }
+
+      document.getElementById('cardHealthScore').textContent = `${healthScore}/100`;
+      document.getElementById('healthBar').style.width = `${healthScore}%`;
+
+      // Text Analisis 50/30/20
+      const analysisEl = document.getElementById('analysisText');
+      if (totalPemasukan > 0) {
+        const pctPengeluaran = ((totalPengeluaran / totalPemasukan) * 100).toFixed(1);
+        const pctSaldo = ((totalSaldo / totalPemasukan) * 100).toFixed(1);
+        analysisEl.innerHTML = `Total pemasukan Anda <b>${formatRupiah(totalPemasukan)}</b>. Pengeluaran Anda menghabiskan <b>${pctPengeluaran}%</b> dari total pemasukan. Tabungan/Sisa Saldo Anda berada di angka <b>${pctSaldo}%</b>. ${totalSaldo >= 0 ? 'Pertahankan rasio tabungan di atas 20%!' : 'Peringatan: Hemat pengeluaran untuk menghindari defisit.'}`;
+      } else {
+        analysisEl.textContent = 'Belum ada data pemasukan untuk dihitung.';
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('transactionTableBody');
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const filterJenis = document.getElementById('filterJenis').value;
+
+      const filtered = state.transactions.filter(t => {
+        const matchesSearch = t.keterangan.toLowerCase().includes(search) || t.kategori.toLowerCase().includes(search);
+        const matchesJenis = filterJenis === 'ALL' || t.jenis === filterJenis;
+        return matchesSearch && matchesJenis;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-8 text-slate-500 italic">
+              Tidak ada data transaksi yang ditemukan.
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(t => `
+        <tr class="hover:bg-slate-800/40 transition">
+          <td class="py-3 px-4 font-mono text-slate-300 text-[11px]">${t.tanggal}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${t.jenis === 'Pemasukan' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}">
+              ${t.jenis}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-slate-200">${t.kategori}</td>
+          <td class="py-3 px-4 font-bold ${t.jenis === 'Pemasukan' ? 'text-emerald-400' : 'text-slate-100'}">
+            ${t.jenis === 'Pemasukan' ? '+' : '-'} ${formatRupiah(t.jumlah)}
+          </td>
+          <td class="py-3 px-4 text-slate-400 max-w-xs truncate">${t.keterangan || '-'}</td>
+          <td class="py-3 px-4 text-center">
+            <div class="flex items-center justify-center space-x-2">
+              <button onclick="editTransaction('${t.id}')" class="p-1.5 text-slate-400 hover:text-brand-400 transition" title="Edit">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button onclick="deleteTransaction('${t.id}')" class="p-1.5 text-slate-400 hover:text-rose-400 transition" title="Hapus">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function initCharts() {
+      // Cash Flow Chart
+      const ctx1 = document.getElementById('cashFlowChart').getContext('2d');
+      state.cashFlowChart = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: ['Pemasukan', 'Pengeluaran'],
+          datasets: [{
+            data: [0, 0],
+            backgroundColor: ['rgba(16, 185, 129, 0.6)', 'rgba(244, 63, 94, 0.6)'],
+            borderColor: ['#10b981', '#f43f5e'],
+            borderWidth: 1.5,
+            borderRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
+          }
+        }
+      });
+
+      // Category Chart
+      const ctx2 = document.getElementById('categoryChart').getContext('2d');
+      state.categoryChart = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: [],
+          datasets: [{
+            data: [],
+            backgroundColor: ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#fb7185', '#34d399', '#fbbf24'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+          }
+        }
+      });
+    }
+
+    function updateCharts() {
+      let totalPem = 0;
+      let totalPeng = 0;
+      const catMap = {};
+
+      state.transactions.forEach(t => {
+        if (t.jenis === 'Pemasukan') {
+          totalPem += t.jumlah;
+        } else {
+          totalPeng += t.jumlah;
+          catMap[t.kategori] = (catMap[t.kategori] || 0) + t.jumlah;
+        }
+      });
+
+      // Update Bar Chart
+      if (state.cashFlowChart) {
+        state.cashFlowChart.data.datasets[0].data = [totalPem, totalPeng];
+        state.cashFlowChart.update();
+      }
+
+      // Update Doughnut Chart
+      if (state.categoryChart) {
+        state.categoryChart.data.labels = Object.keys(catMap);
+        state.categoryChart.data.datasets[0].data = Object.values(catMap);
+        state.categoryChart.update();
+      }
+    }
+
+    function formatRupiah(number) {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(number);
+    }
+
+    function saveLocalData() {
+      localStorage.setItem('fin_transactions', JSON.stringify(state.transactions));
+    }
+
+    function updateConnectionStatus(type, message) {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+
+      if (type === 'connected') {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        text.textContent = message;
+      } else if (type === 'syncing') {
+        dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+        text.textContent = message;
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-slate-500";
+        text.textContent = message;
+      }
+    }
+
+    function openConfigModal() {
+      document.getElementById('configModal').classList.remove('hidden');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('configModal').classList.add('hidden');
+    }
+
+    function saveAppsScriptUrl() {
+      const url = document.getElementById('webAppUrlInput').value.trim();
+      state.webAppUrl = url;
+      localStorage.setItem('fin_webapp_url', url);
+
+      showToast('Disimpan', 'URL Apps Script berhasil disimpan.', 'success');
+      closeConfigModal();
+
+      if (url) {
+        fetchDataFromSheet();
+      } else {
+        updateConnectionStatus('local', 'Mode Lokal');
+      }
+    }
+
+    function copyAppsScriptCode() {
+      const code = `// Kode Google Apps Script
+const SHEET_NAME = 'Sheet1';
+function doGet(e) {
+  try {
+    const sheet = getOrCreateSheet();
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return createJsonResponse({ status: 'success', data: [] });
+    const headers = data[0].map(h => String(h).trim().toLowerCase());
+    const rows = data.slice(1);
+    const idxId = headers.findIndex(h => h.includes('id'));
+    const idxTanggal = headers.findIndex(h => h.includes('tanggal') || h.includes('date'));
+    const idxJenis = headers.findIndex(h => h.includes('jenis') || h.includes('type'));
+    const idxKategori = headers.findIndex(h => h.includes('kategori') || h.includes('category'));
+    const idxJumlah = headers.findIndex(h => h.includes('jumlah') || h.includes('nominal') || h.includes('amount'));
+    const idxKeterangan = headers.findIndex(h => h.includes('keterangan') || h.includes('catatan') || h.includes('note'));
+    const result = rows.filter(row => row.some(cell => cell !== '')).map((row, index) => {
+      let tVal = idxTanggal !== -1 ? row[idxTanggal] : new Date();
+      if (tVal instanceof Date) { tVal = \`\${tVal.getFullYear()}-\${String(tVal.getMonth()+1).padStart(2,'0')}-\${String(tVal.getDate()).padStart(2,'0')}\`; }
+      let jVal = idxJumlah !== -1 ? row[idxJumlah] : 0;
+      if (typeof jVal === 'string') jVal = parseFloat(jVal.replace(/[^0-9.-]+/g, '')) || 0;
+      return {
+        id: (idxId !== -1 && row[idxId]) ? String(row[idxId]) : 'TX-' + (index + 1) + '-' + Date.now().toString(36),
+        tanggal: String(tVal || new Date().toISOString().split('T')[0]),
+        jenis: (idxJenis !== -1 && row[idxJenis]) ? String(row[idxJenis]) : 'Pengeluaran',
+        kategori: (idxKategori !== -1 && row[idxKategori]) ? String(row[idxKategori]) : 'Lainnya',
+        jumlah: Number(jVal) || 0,
+        keterangan: (idxKeterangan !== -1 && row[idxKeterangan]) ? String(row[idxKeterangan]) : ''
+      };
+    });
+    return createJsonResponse({ status: 'success', data: result });
+  } catch (err) { return createJsonResponse({ status: 'error', message: err.toString() }); }
+}
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) return createJsonResponse({ status: 'error', message: 'Payload kosong' });
+    const contents = JSON.parse(e.postData.contents);
+    const action = contents.action;
+    const sheet = getOrCreateSheet();
+    if (action === 'ADD') {
+      const item = contents.data;
+      const id = item.id || 'TX-' + Date.now();
+      sheet.appendRow([id, item.tanggal, item.jenis, item.kategori, Number(item.jumlah), item.keterangan || '', new Date().toISOString()]);
+      return createJsonResponse({ status: 'success', message: 'Tersimpan' });
+    }
+    if (action === 'UPDATE') {
+      const item = contents.data;
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]) === String(item.id)) {
+          const rowNum = i + 1;
+          sheet.getRange(rowNum, 2).setValue(item.tanggal);
+          sheet.getRange(rowNum, 3).setValue(item.jenis);
+          sheet.getRange(rowNum, 4).setValue(item.kategori);
+          sheet.getRange(rowNum, 5).setValue(Number(item.jumlah));
+          sheet.getRange(rowNum, 6).setValue(item.keterangan);
+          return createJsonResponse({ status: 'success', message: 'Diperbarui' });
+        }
+      }
+    }
+    if (action === 'DELETE') {
+      const id = contents.id;
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]) === String(id)) {
+          sheet.deleteRow(i + 1);
+          return createJsonResponse({ status: 'success', message: 'Dihapus' });
+        }
+      }
+    }
+    return createJsonResponse({ status: 'error', message: 'Aksi tidak ditemukan' });
+  } catch (err) { return createJsonResponse({ status: 'error', message: err.toString() }); }
+}
+function getOrCreateSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['id', 'tanggal', 'jenis', 'kategori', 'jumlah', 'keterangan', 'createdAt']);
+    sheet.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}`;
+
+      const tempTextArea = document.createElement('textarea');
+      tempTextArea.value = code;
+      document.body.appendChild(tempTextArea);
+      tempTextArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempTextArea);
+
+      const copyBtnText = document.getElementById('copyBtnText');
+      copyBtnText.textContent = 'Berhasil Disalin!';
+      setTimeout(() => { copyBtnText.textContent = 'Salin Kode.gs'; }, 2000);
+      showToast('Kode Disalin', 'Kode.gs telah disalin ke clipboard!', 'success');
+    }
+
+    function showToast(title, message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastTitle = document.getElementById('toastTitle');
+      const toastMessage = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+
+      toastTitle.textContent = title;
+      toastMessage.textContent = message;
+
+      if (type === 'success') {
+        toastIcon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+      } else if (type === 'error') {
+        toastIcon.className = "fa-solid fa-circle-xmark text-rose-400 text-base";
+      } else if (type === 'warning') {
+        toastIcon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-base";
+      } else {
+        toastIcon.className = "fa-solid fa-circle-info text-brand-400 text-base";
+      }
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
